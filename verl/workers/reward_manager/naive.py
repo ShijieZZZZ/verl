@@ -80,6 +80,8 @@ class NaiveRewardManager:
             num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
             extra_info["num_turns"] = num_turns
 
+            extra_info['logprobs'] = data.batch['rollout_log_probs'][i]
+
             score = self.compute_score(
                 data_source=data_source,
                 solution_str=response_str,
