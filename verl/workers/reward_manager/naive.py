@@ -80,7 +80,12 @@ class NaiveRewardManager:
             num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
             extra_info["num_turns"] = num_turns
 
-            extra_info['logprobs'] = data.batch['rollout_log_probs'][i]
+            if 'rollout_log_probs' in data.batch:
+                extra_info['logprobs'] = data.batch['rollout_log_probs'][i]
+            if 'rollout_topk_token_ids' in data.batch:
+                extra_info['topk_token_ids'] = data.batch['rollout_topk_token_ids'][i]
+            if 'rollout_topk_log_probs' in data.batch:
+                extra_info['topk_log_probs'] = data.batch['rollout_topk_log_probs'][i]
 
             score = self.compute_score(
                 data_source=data_source,
