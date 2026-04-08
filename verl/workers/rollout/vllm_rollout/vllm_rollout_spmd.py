@@ -355,47 +355,36 @@ class vLLMRollout(BaseRollout):
             rollout_log_probs = []
             rollout_topk_token_ids = []
             rollout_topk_log_probs = []
+            target_token_ids_set = set([15, 16, 17, 18, 19, 20])
             topk_log_probs = max(1, int(self.config.get("rollout_log_probs_topk", 10)))
             for output in outputs:
                 for sample_id in range(len(output.outputs)):
                     response_ids = output.outputs[sample_id].token_ids
                     response.append(response_ids)
                     if self.config.calculate_log_probs:
-                        curr_log_prob = []
-                        curr_topk_token_ids = []
-                        curr_topk_log_probs = []
+                        matched_log_prob = -1.0
+                        matched_topk_token_ids = [-1] * topk_log_probs
+                        matched_topk_log_probs = [float("-inf")] * topk_log_probs
                         for i, logprob in enumerate(output.outputs[sample_id].logprobs):
-                            curr_log_prob.append(logprob[response_ids[i]].logprob)
                             topk_token_ids, topk_token_logprobs = _extract_topk_token_logprobs(logprob, topk_log_probs)
-                            curr_topk_token_ids.append(topk_token_ids)
-                            curr_topk_log_probs.append(topk_token_logprobs)
-                        rollout_log_probs.append(curr_log_prob)
-                        rollout_topk_token_ids.append(curr_topk_token_ids)
-                        rollout_topk_log_probs.append(curr_topk_log_probs)
+                            if target_token_ids_set.issubset(set(topk_token_ids)):
+                                matched_log_prob = logprob[response_ids[i]].logprob
+                                matched_topk_token_ids = topk_token_ids
+                                matched_topk_log_probs = topk_token_logprobs
+                        rollout_log_probs.append([matched_log_prob])
+                        rollout_topk_token_ids.append([matched_topk_token_ids])
+                        rollout_topk_log_probs.append([matched_topk_log_probs])
 
             response = pad_2d_list_to_length(response, self.pad_token_id, max_length=self.config.response_length).to(
                 idx.device
             )
             if self.config.calculate_log_probs:
-                rollout_log_probs = pad_2d_list_to_length(
-                    rollout_log_probs, -1, max_length=self.config.response_length
-                ).to(idx.device)
-                rollout_log_probs = rollout_log_probs.to(torch.float32)
-
-                # Pad 3D topk lists: [batch, response_length, top_k] -> tensors
-                target_len = self.config.response_length
-                pad_token_ids_row = [-1] * topk_log_probs
-                pad_logprobs_row = [float("-inf")] * topk_log_probs
-                padded_topk_ids = [
-                    sample + [pad_token_ids_row] * (target_len - len(sample))
-                    for sample in rollout_topk_token_ids
-                ]
-                padded_topk_lps = [
-                    sample + [pad_logprobs_row] * (target_len - len(sample))
-                    for sample in rollout_topk_log_probs
-                ]
-                rollout_topk_token_ids = torch.tensor(padded_topk_ids, dtype=torch.long, device=idx.device)
-                rollout_topk_log_probs = torch.tensor(padded_topk_lps, dtype=torch.float32, device=idx.device)
+                # rollout_log_probs: [batch_size, 1]
+                rollout_log_probs = torch.tensor(rollout_log_probs, dtype=torch.float32, device=idx.device)
+                # rollout_topk_token_ids: [batch_size, 1, top_k]
+                rollout_topk_token_ids = torch.tensor(rollout_topk_token_ids, dtype=torch.long, device=idx.device)
+                # rollout_topk_log_probs: [batch_size, 1, top_k]
+                rollout_topk_log_probs = torch.tensor(rollout_topk_log_probs, dtype=torch.float32, device=idx.device)
 
             seq = torch.cat([idx, response], dim=-1)
 
