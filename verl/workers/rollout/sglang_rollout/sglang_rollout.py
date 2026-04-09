@@ -482,7 +482,11 @@ class SGLangRollout(BaseRollout):
         # supporting adding any sampling params from the config file
         for k in self.config.keys():
             if hasattr(SamplingParams(), str(k)) or "stop" in str(k):
-                kwargs[k] = self.config.get(k)
+                v = self.config.get(k)
+                # Hydra wraps lists in ListConfig which fails isinstance(x, list) checks
+                if isinstance(v, (list, tuple)) or (hasattr(v, "__iter__") and not isinstance(v, (str, dict))):
+                    v = list(v)
+                kwargs[k] = v
         kwargs["n"] = 1  # already repeat in ray_trainer
         self.sampling_params = kwargs
 

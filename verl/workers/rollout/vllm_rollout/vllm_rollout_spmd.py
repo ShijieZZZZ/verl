@@ -224,7 +224,11 @@ class vLLMRollout(BaseRollout):
         # supporting adding any sampling params from the config file
         for k in config.keys():
             if hasattr(SamplingParams(), str(k)) and k != "seed":
-                kwargs[k] = config.get(k)
+                v = config.get(k)
+                # Hydra wraps lists in ListConfig which fails vLLM's isinstance(x, list) checks
+                if isinstance(v, (list, tuple)) or (hasattr(v, "__iter__") and not isinstance(v, (str, dict))):
+                    v = list(v)
+                kwargs[k] = v
         kwargs["n"] = 1  # already repeat in ray_trainer
         print(f"kwargs: {kwargs}")
         self.sampling_params = SamplingParams(**kwargs)
