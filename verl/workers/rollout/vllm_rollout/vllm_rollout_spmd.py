@@ -367,7 +367,7 @@ class vLLMRollout(BaseRollout):
                         matched_topk_log_probs = [float("-inf")] * topk_log_probs
                         for i, logprob in enumerate(output.outputs[sample_id].logprobs):
                             topk_token_ids, topk_token_logprobs = _extract_topk_token_logprobs(logprob, topk_log_probs)
-                            if target_token_ids_set.issubset(set(topk_token_ids)):
+                            if target_token_ids_set.intersection(set(topk_token_ids)):
                                 matched_log_prob = logprob[response_ids[i]].logprob
                                 matched_topk_token_ids = topk_token_ids
                                 matched_topk_log_probs = topk_token_logprobs
