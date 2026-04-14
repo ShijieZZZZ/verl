@@ -359,36 +359,46 @@ class vLLMRollout(BaseRollout):
             rollout_log_probs = []
             rollout_topk_token_ids = []
             rollout_topk_log_probs = []
-            target_token_ids_set = set([15, 16, 17, 18, 19, 20])
+            rollout_pad_lens = []
             topk_log_probs = max(1, int(self.config.get("rollout_log_probs_topk", 10)))
             for output in outputs:
                 for sample_id in range(len(output.outputs)):
                     response_ids = output.outputs[sample_id].token_ids
                     response.append(response_ids)
                     if self.config.calculate_log_probs:
-                        matched_log_prob = -1.0
-                        matched_topk_token_ids = [-1] * topk_log_probs
-                        matched_topk_log_probs = [float("-inf")] * topk_log_probs
+                        per_token_log_probs = []
+                        per_token_topk_ids = []
+                        per_token_topk_logprobs = []
                         for i, logprob in enumerate(output.outputs[sample_id].logprobs):
                             topk_token_ids, topk_token_logprobs = _extract_topk_token_logprobs(logprob, topk_log_probs)
-                            if target_token_ids_set.intersection(set(topk_token_ids)):
-                                matched_log_prob = logprob[response_ids[i]].logprob
-                                matched_topk_token_ids = topk_token_ids
-                                matched_topk_log_probs = topk_token_logprobs
-                        rollout_log_probs.append([matched_log_prob])
-                        rollout_topk_token_ids.append([matched_topk_token_ids])
-                        rollout_topk_log_probs.append([matched_topk_log_probs])
+                            token_log_prob = logprob[response_ids[i]].logprob if response_ids[i] in logprob else float("-inf")
+                            per_token_log_probs.append(token_log_prob)
+                            per_token_topk_ids.append(topk_token_ids)
+                            per_token_topk_logprobs.append(topk_token_logprobs)
+                        # pad to response_length
+                        num_generated = len(per_token_log_probs)
+                        pad_len = self.config.response_length - num_generated
+                        if pad_len > 0:
+                            per_token_log_probs.extend([float("-inf")] * pad_len)
+                            per_token_topk_ids.extend([[-1] * topk_log_probs] * pad_len)
+                            per_token_topk_logprobs.extend([[float("-inf")] * topk_log_probs] * pad_len)
+                        rollout_log_probs.append(per_token_log_probs[:self.config.response_length])
+                        rollout_topk_token_ids.append(per_token_topk_ids[:self.config.response_length])
+                        rollout_topk_log_probs.append(per_token_topk_logprobs[:self.config.response_length])
+                        rollout_pad_lens.append(max(0, pad_len))
 
             response = pad_2d_list_to_length(response, self.pad_token_id, max_length=self.config.response_length).to(
                 idx.device
             )
             if self.config.calculate_log_probs:
-                # rollout_log_probs: [batch_size, 1]
+                # rollout_log_probs: [batch_size, response_length]
                 rollout_log_probs = torch.tensor(rollout_log_probs, dtype=torch.float32, device=idx.device)
-                # rollout_topk_token_ids: [batch_size, 1, top_k]
+                # rollout_topk_token_ids: [batch_size, response_length, top_k]
                 rollout_topk_token_ids = torch.tensor(rollout_topk_token_ids, dtype=torch.long, device=idx.device)
-                # rollout_topk_log_probs: [batch_size, 1, top_k]
+                # rollout_topk_log_probs: [batch_size, response_length, top_k]
                 rollout_topk_log_probs = torch.tensor(rollout_topk_log_probs, dtype=torch.float32, device=idx.device)
+                # rollout_pad_lens: [batch_size]
+                rollout_pad_lens = torch.tensor(rollout_pad_lens, dtype=torch.long, device=idx.device)
 
             seq = torch.cat([idx, response], dim=-1)
 
@@ -425,6 +435,7 @@ class vLLMRollout(BaseRollout):
             batch["rollout_log_probs"] = rollout_log_probs
             batch["rollout_topk_token_ids"] = rollout_topk_token_ids
             batch["rollout_topk_log_probs"] = rollout_topk_log_probs
+            batch["rollout_pad_lens"] = rollout_pad_lens
 
         return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
 
