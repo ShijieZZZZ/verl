@@ -88,6 +88,8 @@ class NaiveRewardManager:
                 extra_info['topk_log_probs'] = data.batch['rollout_topk_log_probs'][i]
             if 'rollout_pad_lens' in data.batch:
                 extra_info['rollout_pad_lens'] = data.batch['rollout_pad_lens'][i]
+            if 'rollout_num_generated' in data.batch:
+                extra_info['rollout_num_generated'] = data.batch['rollout_num_generated'][i]
 
             score = self.compute_score(
                 data_source=data_source,
