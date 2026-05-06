@@ -65,6 +65,62 @@ from verl.utils.tracking import ValidationGenerationsLogger
 from verl.workers.config import FSDPEngineConfig
 from verl.workers.utils.padding import left_right_2_no_padding, no_padding_2_padding
 
+import re
+
+
+def _sanitize_mlflow_key(key: str) -> str:
+    """Sanitize metric key for MLflow logging.
+    
+    MLflow only allows: slashes, alphanumerics, underscores, periods, dashes, colons, and spaces.
+    This function sanitizes keys to match MLflow's validation requirements.
+    """
+    # First replace @ with _at_ for backward compatibility
+    sanitized = key.replace("@", "_at_")
+    # Replace consecutive slashes with a single slash
+    sanitized = re.sub(r"/+", "/", sanitized)
+    # Replace any other invalid characters with _
+    sanitized = re.sub(r"[^/\w.\- :]", "_", sanitized)
+    return sanitized
+
+
+def _log_to_mlflow(metrics: dict, step: int, project_name: str | None = None, experiment_name: str | None = None):
+    """Log metrics to MLflow as a fallback, regardless of trainer config.
+    
+    This ensures metrics are always logged to MLflow if it's installed,
+    even if MLflow is not in the trainer logger backends.
+    
+    Args:
+        metrics: Dictionary of metrics to log (limited to 50 metrics)
+        step: Training step number
+        project_name: MLflow experiment name to use when creating a fallback run
+        experiment_name: MLflow run name to use when creating a fallback run
+    """
+    try:
+        import mlflow
+
+        if mlflow.active_run() is None:
+            mlflow_tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:////tmp/mlruns.db")
+            mlflow.set_tracking_uri(mlflow_tracking_uri)
+
+            # Some cloud providers set MLFLOW_RUN_ID; attach to that run when available.
+            run_id = os.environ.get("MLFLOW_RUN_ID")
+            if run_id:
+                mlflow.start_run(run_id=run_id)
+            else:
+                if project_name:
+                    experiment = mlflow.set_experiment(project_name)
+                    mlflow.start_run(experiment_id=experiment.experiment_id, run_name=experiment_name)
+                else:
+                    mlflow.start_run(run_name=experiment_name or "verl_fallback")
+
+        # Limit to first 50 metrics to avoid exceeding MLflow's logging limits
+        metrics_to_log = dict(list(metrics.items())[:50])
+        sanitized_metrics = {_sanitize_mlflow_key(k): v for k, v in metrics_to_log.items()}
+        mlflow.log_metrics(metrics=sanitized_metrics, step=step)
+    except Exception:
+        # Silently ignore MLflow logging errors to avoid breaking training
+        pass
+
 
 @dataclass
 class ResourcePoolManager:
@@ -1301,6 +1357,13 @@ class RayPPOTrainer:
             assert val_metrics, f"{val_metrics=}"
             pprint(f"Initial validation metrics: {val_metrics}")
             logger.log(data=val_metrics, step=self.global_steps)
+            # Also log to MLflow as a fallback (if MLflow is installed and active)
+            _log_to_mlflow(
+                val_metrics,
+                self.global_steps,
+                project_name=self.config.trainer.project_name,
+                experiment_name=self.config.trainer.experiment_name,
+            )
             if self.config.trainer.get("val_only", False):
                 return
 
@@ -1628,6 +1691,13 @@ class RayPPOTrainer:
 
                 # TODO: make a canonical logger that supports various backend
                 logger.log(data=metrics, step=self.global_steps)
+                # Also log to MLflow as a fallback (if MLflow is installed and active)
+                _log_to_mlflow(
+                    metrics,
+                    self.global_steps,
+                    project_name=self.config.trainer.project_name,
+                    experiment_name=self.config.trainer.experiment_name,
+                )
 
                 progress_bar.update(1)
                 self.global_steps += 1
