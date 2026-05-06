@@ -215,7 +215,7 @@ class vLLMRollout(BaseRollout):
 
         kwargs = dict(
             n=1,
-            logprobs=10,  # can be set to 0 and let actor to recompute
+            logprobs=10 if config.get("calculate_log_probs", False) else 0,
             max_tokens=config.response_length,
         )
 
