@@ -431,6 +431,11 @@ class AgentLoopWorkerBase:
             logprobs=config.calculate_log_probs,
         )
 
+        # merge user-provided extra sampling params (e.g. stop, include_stop_str_in_output)
+        extra_sampling_params = config.get("extra_sampling_params", None)
+        if extra_sampling_params:
+            sampling_params.update(dict(extra_sampling_params))
+
         # override sampling params for validation
         if batch.meta_info.get("validate", False):
             sampling_params["top_p"] = config.val_kwargs.top_p

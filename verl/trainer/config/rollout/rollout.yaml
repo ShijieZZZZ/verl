@@ -122,6 +122,15 @@ engine_kwargs:
   # sglang engine config
   sglang: {}
 
+# Extra per-request sampling parameters forwarded to the inference engine's
+# sampling params (e.g. vLLM `SamplingParams`). Merged into the dict built in
+# the agent loop, so anything valid for the backend works here, e.g.:
+#   stop: ["xxx", "yyy"]
+#   include_stop_str_in_output: true
+#   stop_token_ids: [128001]
+#   min_p: 0.0
+extra_sampling_params: {}
+
 # Sampling parameters used during validation.
 val_kwargs:
 

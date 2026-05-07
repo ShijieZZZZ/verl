@@ -170,6 +170,11 @@ class RolloutConfig(BaseConfig):
     multi_stage_wake_up: bool = False
     engine_kwargs: dict = field(default_factory=dict)
 
+    # Extra per-request sampling parameters forwarded to the inference engine
+    # (e.g. vLLM `SamplingParams`, sglang sampling params). Useful for stop strings,
+    # `include_stop_str_in_output`, `stop_token_ids`, `min_p`, etc.
+    extra_sampling_params: dict = field(default_factory=dict)
+
     calculate_log_probs: bool = False
 
     agent: AgentLoopConfig = field(default_factory=AgentLoopConfig)
