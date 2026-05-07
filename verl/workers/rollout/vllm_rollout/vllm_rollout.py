@@ -45,11 +45,14 @@ from vllm.config import LoRAConfig
 
 from verl.utils.ray_utils import get_event_loop
 
+# vLLM >= 0.20 removed `vllm.worker.worker_base` and reorganized the worker base
+# under `vllm.v1.worker.worker_base`. Prefer the v1 import; fall back to the
+# legacy path for older vLLM builds.
+# https://github.com/vllm-project/vllm/commit/6a113d9aed8221a9c234535958e70e34ab6cac5b
 try:
-    from vllm.worker.worker_base import WorkerWrapperBase
-except ModuleNotFoundError:
-    # https://github.com/vllm-project/vllm/commit/6a113d9aed8221a9c234535958e70e34ab6cac5b
     from vllm.v1.worker.worker_base import WorkerWrapperBase
+except ModuleNotFoundError:
+    from vllm.worker.worker_base import WorkerWrapperBase
 
 from packaging import version as vs
 
@@ -202,7 +205,15 @@ class vLLMAsyncRollout(BaseRollout):
                 # Will remove the patch after vllm support on-the-fly quant for rollout natively.
                 apply_vllm_fp8_patches()
 
-        self.inference_engine = WorkerWrapperBase(vllm_config=self.vllm_config)
+        # vLLM >= 0.20 changed `WorkerWrapperBase.__init__` to only accept
+        # `(rpc_rank=0, global_rank=None)`. The `vllm_config` is now read inside
+        # `init_worker(all_kwargs)` from `all_kwargs[rpc_rank]["vllm_config"]`,
+        # which is already populated above. Try the new no-arg signature first
+        # and fall back to the older `vllm_config=` kwarg for backward compat.
+        try:
+            self.inference_engine = WorkerWrapperBase()
+        except TypeError:
+            self.inference_engine = WorkerWrapperBase(vllm_config=self.vllm_config)
         self.inference_engine.init_worker(all_kwargs)
 
     def _load_model(self, *args, **kwargs):
