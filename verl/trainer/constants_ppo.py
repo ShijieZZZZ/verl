@@ -31,6 +31,13 @@ PPO_RAY_RUNTIME_ENV = {
         # https://docs.vllm.ai/en/latest/usage/troubleshooting.html?h=nccl_cumem_enable#known-issues
         # https://github.com/vllm-project/vllm/blob/c6b0a7d3ba03ca414be1174e9bd86a97191b7090/vllm/worker/worker_base.py#L445
         "NCCL_CUMEM_ENABLE": "0",
+        # Required by verl's external ZMQ-distributed vLLM executor: each Ray actor must see
+        # all GPUs (verl performs its own per-rank pinning in single_controller/base/worker.py).
+        # Without this, vLLM v0.20+ fails in vllm/v1/worker/gpu_worker.py:init_device with
+        # `local_world_size (TP) must be <= number of visible devices (1)`. Covers both NVIDIA
+        # CUDA and AMD ROCm/HIP setups; harmless on the platform that doesn't apply.
+        "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES": "1",
+        "RAY_EXPERIMENTAL_NOSET_HIP_VISIBLE_DEVICES": "1",
     },
 }
 
