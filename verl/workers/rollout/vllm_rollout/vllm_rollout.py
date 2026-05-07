@@ -226,7 +226,22 @@ class vLLMAsyncRollout(BaseRollout):
         elif method == "load_model":
             return self._load_model(*args, **kwargs)
         else:
-            return self.inference_engine.execute_method(method, *args, **kwargs)
+            # Legacy vLLM exposed a generic `execute_method(name, ...)` dispatcher on
+            # `WorkerWrapperBase`. vLLM >= 0.20 (V1 worker base) removed it; methods
+            # are now accessed directly on the wrapper or delegated to `self.worker`
+            # via `__getattr__`. Use the legacy dispatcher when available, otherwise
+            # resolve the attribute manually and support pickled callables (the
+            # legacy `execute_method` accepted both strings and bytes-pickled
+            # callables).
+            engine = self.inference_engine
+            if hasattr(engine, "execute_method"):
+                return engine.execute_method(method, *args, **kwargs)
+            if isinstance(method, bytes):
+                method = pickle.loads(method)
+            if isinstance(method, str):
+                return getattr(engine, method)(*args, **kwargs)
+            # method is a callable; bind it to the engine like the legacy code did.
+            return method(engine, *args, **kwargs)
 
     async def resume(self, tags: list[str]):
         """Resume rollout weights or kv cache in GPU memory.
