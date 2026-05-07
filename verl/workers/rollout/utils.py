@@ -31,6 +31,39 @@ def is_valid_ipv6_address(address: str) -> bool:
         return False
 
 
+def get_hf_max_position_embeddings(hf_config) -> int:
+    """Robustly resolve ``max_position_embeddings`` from a HF model config.
+
+    Newer composite/multimodal configs (e.g. ``Qwen3_5MoeConfig``,
+    ``Qwen2_5_VLConfig``, ``Qwen3OmniMoeConfig``) do not expose
+    ``max_position_embeddings`` at the top level; the value lives under a text
+    sub-config. This helper tries several common locations before giving up.
+    """
+    candidates = [hf_config]
+
+    text_config = getattr(hf_config, "text_config", None)
+    if text_config is not None:
+        candidates.append(text_config)
+
+    get_text_config = getattr(hf_config, "get_text_config", None)
+    if callable(get_text_config):
+        try:
+            candidates.append(get_text_config())
+        except Exception:
+            pass
+
+    for cfg in candidates:
+        for attr in ("max_position_embeddings", "n_positions", "max_seq_len"):
+            value = getattr(cfg, attr, None)
+            if isinstance(value, int) and value > 0:
+                return value
+
+    raise AttributeError(
+        f"Cannot determine max_position_embeddings from hf_config of type "
+        f"{type(hf_config).__name__}; please set rollout.max_model_len explicitly."
+    )
+
+
 def get_free_port(address: str) -> tuple[int, socket.socket]:
     family = socket.AF_INET
     if is_valid_ipv6_address(address):
