@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import heapq
+import inspect
 import logging
 import os
 import random
@@ -675,13 +676,30 @@ class AgentLoopWorkerBase:
         image_grid_thw = multi_modal_inputs.get("image_grid_thw")
         video_grid_thw = multi_modal_inputs.get("video_grid_thw")
 
+        # transformers >= 5.x Qwen2_5_VL/Qwen3VL get_rope_index require
+        # `mm_token_type_ids` (text=0, image=1, video=2). Older signatures accept
+        # it via **kwargs and will simply ignore it.
+        rope_kwargs = {
+            "input_ids": input_ids,
+            "image_grid_thw": image_grid_thw,
+            "video_grid_thw": video_grid_thw,
+            "attention_mask": attention_mask,
+        }
+        rope_sig_params = inspect.signature(self.processor.get_rope_index).parameters
+        if "mm_token_type_ids" in rope_sig_params:
+            mm_token_type_ids = multi_modal_inputs.get("mm_token_type_ids")
+            if mm_token_type_ids is None:
+                mm_token_type_ids = torch.zeros_like(input_ids, dtype=torch.long)
+                image_token_id = getattr(self.processor, "image_token_id", None)
+                video_token_id = getattr(self.processor, "video_token_id", None)
+                if image_token_id is not None:
+                    mm_token_type_ids[input_ids == image_token_id] = 1
+                if video_token_id is not None:
+                    mm_token_type_ids[input_ids == video_token_id] = 2
+            rope_kwargs["mm_token_type_ids"] = mm_token_type_ids
+
         # Model's get_rope_index has been dynamically bind to the processor.
-        vision_position_ids, _ = self.processor.get_rope_index(
-            input_ids=input_ids,
-            image_grid_thw=image_grid_thw,
-            video_grid_thw=video_grid_thw,
-            attention_mask=attention_mask,
-        )
+        vision_position_ids, _ = self.processor.get_rope_index(**rope_kwargs)
         vision_position_ids = vision_position_ids.transpose(0, 1)  # (3, 1, seq_len) => (1, 3, seq_len)
 
         valid_mask = attention_mask[0].bool()
