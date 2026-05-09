@@ -687,8 +687,16 @@ class AgentLoopWorkerBase:
         }
         rope_sig_params = inspect.signature(self.processor.get_rope_index).parameters
         if "mm_token_type_ids" in rope_sig_params:
+            # The processor may return `mm_token_type_ids` whose length matches the
+            # *un-padded* re-tokenized text (see `_compute_multi_modal_inputs`, which
+            # decodes with `skip_special_tokens=True` and re-tokenizes). However,
+            # `input_ids`/`attention_mask` here are padded to
+            # `prompt_length + response_length`, and transformers' `get_rope_index`
+            # indexes `mm_token_type_ids[batch_idx][attention_mask[batch_idx].bool()]`,
+            # which raises an IndexError on the shape mismatch. Always rebuild
+            # `mm_token_type_ids` from the padded `input_ids` so the shapes align.
             mm_token_type_ids = multi_modal_inputs.get("mm_token_type_ids")
-            if mm_token_type_ids is None:
+            if mm_token_type_ids is None or mm_token_type_ids.shape[-1] != input_ids.shape[-1]:
                 mm_token_type_ids = torch.zeros_like(input_ids, dtype=torch.long)
                 image_token_id = getattr(self.processor, "image_token_id", None)
                 video_token_id = getattr(self.processor, "video_token_id", None)
