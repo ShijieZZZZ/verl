@@ -79,6 +79,9 @@ class NaiveRewardManager:
             extra_info = data_item.non_tensor_batch.get("extra_info", {})
             num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
             extra_info["num_turns"] = num_turns
+            # surface the current trainer step (set on data.meta_info by ray_trainer.py:fit
+            # and ray_trainer.py:_validate) so user reward functions can schedule on it.
+            extra_info["global_steps"] = data.meta_info.get("global_steps")
 
             if 'rollout_log_probs' in data.batch:
                 extra_info['logprobs'] = data.batch['rollout_log_probs'][i]

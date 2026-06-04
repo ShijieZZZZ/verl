@@ -1211,6 +1211,10 @@ class RayPPOTrainer:
 
                     # compute global_valid tokens
                     batch.meta_info["global_token_num"] = torch.sum(batch.batch["attention_mask"], dim=-1).tolist()
+                    # ensure reward_fn (e.g. NaiveRewardManager) can read the current training
+                    # step from data.meta_info; rollout paths (sync vs async agent-loop) do not
+                    # uniformly preserve gen_batch.meta_info, so re-stamp it explicitly here.
+                    batch.meta_info["global_steps"] = self.global_steps
 
                     with marked_timer("reward", timing_raw, color="yellow"):
                         # compute reward model score
