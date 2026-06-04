@@ -695,14 +695,23 @@ class AgentLoopWorkerBase:
             # indexes `mm_token_type_ids[batch_idx][attention_mask[batch_idx].bool()]`,
             # which raises an IndexError on the shape mismatch. Always rebuild
             # `mm_token_type_ids` from the padded `input_ids` so the shapes align.
+            #
+            # IMPORTANT: only mark a token as image (type=1) / video (type=2) if the
+            # corresponding `*_grid_thw` is actually present and non-empty. Otherwise
+            # Qwen3VL's `get_rope_index` builds `grid_iters[modality_type] = None`
+            # and crashes with `TypeError: 'NoneType' object is not an iterator`
+            # when a placeholder token in `input_ids` (e.g. left over from the chat
+            # template) has no matching grid entry to consume.
+            has_image_grid = image_grid_thw is not None and len(image_grid_thw) > 0
+            has_video_grid = video_grid_thw is not None and len(video_grid_thw) > 0
             mm_token_type_ids = multi_modal_inputs.get("mm_token_type_ids")
             if mm_token_type_ids is None or mm_token_type_ids.shape[-1] != input_ids.shape[-1]:
                 mm_token_type_ids = torch.zeros_like(input_ids, dtype=torch.long)
                 image_token_id = getattr(self.processor, "image_token_id", None)
                 video_token_id = getattr(self.processor, "video_token_id", None)
-                if image_token_id is not None:
+                if image_token_id is not None and has_image_grid:
                     mm_token_type_ids[input_ids == image_token_id] = 1
-                if video_token_id is not None:
+                if video_token_id is not None and has_video_grid:
                     mm_token_type_ids[input_ids == video_token_id] = 2
             rope_kwargs["mm_token_type_ids"] = mm_token_type_ids
 
