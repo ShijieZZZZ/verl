@@ -17,6 +17,7 @@ import itertools
 import json
 import math
 import os
+import warnings
 from abc import ABC
 from collections import OrderedDict
 from contextlib import contextmanager, nullcontext
@@ -121,18 +122,33 @@ def get_fsdp_wrap_policy(module, config=None, is_lora=False):
         policies.append(size_policy)
     elif fsdp_transformer_layer_cls_to_wrap is not None:
         transformer_cls_to_wrap = set()
+        missing_layer_classes = []
         for layer_class in fsdp_transformer_layer_cls_to_wrap:
             transformer_cls = get_module_class_from_name(module, layer_class)
             if transformer_cls is None:
-                raise Exception("Could not find the transformer layer class to wrap in the model.")
+                missing_layer_classes.append(layer_class)
             else:
                 transformer_cls_to_wrap.add(transformer_cls)
 
-        transformer_policy = functools.partial(
-            transformer_auto_wrap_policy,
-            transformer_layer_cls=transformer_cls_to_wrap,
-        )
-        policies.append(transformer_policy)
+        if missing_layer_classes:
+            warnings.warn(
+                f"FSDP wrap: could not resolve transformer layer class(es) "
+                f"{missing_layer_classes} on {type(module).__name__}; skipping. "
+                f"Resolved classes: {sorted(c.__name__ for c in transformer_cls_to_wrap)}.",
+                stacklevel=1,
+            )
+
+        if transformer_cls_to_wrap:
+            transformer_policy = functools.partial(
+                transformer_auto_wrap_policy,
+                transformer_layer_cls=transformer_cls_to_wrap,
+            )
+            policies.append(transformer_policy)
+        elif missing_layer_classes:
+            warnings.warn(
+                "FSDP wrap: no transformer layer classes resolved; falling back to no transformer auto-wrap policy.",
+                stacklevel=1,
+            )
 
     if len(policies) > 0:
         auto_wrap_policy = functools.partial(_or_policy, policies=policies)

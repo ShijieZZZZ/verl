@@ -129,6 +129,14 @@ class PrimeRewardManager(AbstractRewardManager):
         ground_truth = [data_item.non_tensor_batch["reward_model"]["ground_truth"] for data_item in data]
         data_sources = data.non_tensor_batch[self.reward_fn_key]
         extra_info = data.non_tensor_batch.get("extra_info", None)
+        global_steps = data.meta_info.get("global_steps", None)
+        if extra_info is None:
+            extra_info = [{"global_steps": global_steps} for _ in range(len(sequences_str))]
+        else:
+            for i in range(len(extra_info)):
+                if extra_info[i] is None:
+                    extra_info[i] = {}
+                extra_info[i]["global_steps"] = global_steps
 
         assert len(sequences_str) == len(ground_truth) == len(data_sources)
         try:
