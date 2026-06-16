@@ -499,6 +499,12 @@ class vLLMHttpServerBase:
         )
         sampling_params["logprobs"] = 0 if sampling_params.pop("logprobs", False) else None
         sampling_params.setdefault("repetition_penalty", self.config.get("repetition_penalty", 1.0))
+        # vLLM SamplingParams requires stop/stop_token_ids to be plain Python lists,
+        # but OmegaConf may deliver them as ListConfig objects — coerce defensively.
+        if "stop" in sampling_params and not isinstance(sampling_params["stop"], list):
+            sampling_params["stop"] = list(sampling_params["stop"])
+        if "stop_token_ids" in sampling_params and not isinstance(sampling_params["stop_token_ids"], list):
+            sampling_params["stop_token_ids"] = list(sampling_params["stop_token_ids"])
         sampling_params = SamplingParams(max_tokens=max_tokens, **sampling_params)
         prompt_ids = _qwen2_5_vl_dedup_image_tokens(prompt_ids, self.model_config.processor)
         multi_modal_data = {}
