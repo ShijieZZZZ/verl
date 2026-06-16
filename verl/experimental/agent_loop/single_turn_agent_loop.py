@@ -33,7 +33,9 @@ class SingleTurnAgentLoop(AgentLoopBase):
         self.response_length = self.config.actor_rollout_ref.rollout.response_length
 
     async def run(self, sampling_params: dict[str, Any], **kwargs) -> AgentLoopOutput:
-        prompt_ids = self._coerce_prompt_ids(kwargs.get("raw_prompt_ids"))
+        prompt_ids = None
+        if self.dataset_config.get("use_raw_prompt_ids_for_generation", False):
+            prompt_ids = self._coerce_prompt_ids(kwargs.get("raw_prompt_ids"))
         if prompt_ids is None:
             messages = list(kwargs["raw_prompt"])
 
