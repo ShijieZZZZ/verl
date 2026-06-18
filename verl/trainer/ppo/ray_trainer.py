@@ -1443,6 +1443,7 @@ class RayPPOTrainer:
                             # compute reward model score on batch
                             rm_scores = None
                             if self.use_rm and "rm_scores" not in batch.batch.keys():
+                                batch.meta_info["global_steps"] = self.global_steps
                                 if not self.use_reward_loop:
                                     rm_scores = self.rm_wg.compute_rm_score(batch)
                                 else:
