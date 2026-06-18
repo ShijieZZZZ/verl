@@ -57,7 +57,7 @@ class DAPORewardManager(RewardManagerBase):
         extra_info = data_item.non_tensor_batch.get("extra_info", {})
         if extra_info is None:
             extra_info = {}
-        extra_info["global_steps"] = data.meta_info.get("global_steps", None)
+        extra_info["global_steps"] = data.meta_info.get("global_steps", 0)
 
         response_str = await self.loop.run_in_executor(
             None, lambda: self.tokenizer.decode(valid_response_ids, skip_special_tokens=True)

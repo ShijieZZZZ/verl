@@ -44,7 +44,7 @@ class NaiveRewardManager(RewardManagerBase):
         extra_info = data_item.non_tensor_batch.get("extra_info", {})
         if extra_info is None:
             extra_info = {}
-        extra_info["global_steps"] = data.meta_info.get("global_steps", None)
+        extra_info["global_steps"] = data.meta_info.get("global_steps", 0)
         tool_extra_fields = data_item.non_tensor_batch.get("tool_extra_fields", None)
         if tool_extra_fields is not None:
             extra_info.update(tool_extra_fields.items())

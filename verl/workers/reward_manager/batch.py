@@ -63,9 +63,11 @@ class BatchRewardManager(AbstractRewardManager):
         data_sources = data.non_tensor_batch[self.reward_fn_key]
         rollout_reward_scores = data.non_tensor_batch.get("reward_scores", [{} for _ in range(len(data))])
         extras = data.non_tensor_batch.get("extra_info", [{} for _ in range(len(data))])
-        global_steps = data.meta_info.get("global_steps", None)
+        global_steps = data.meta_info.get("global_steps", 0)
 
         for i in range(len(data)):
+            if extras[i] is None:
+                extras[i] = {}
             extras[i]["rollout_reward_scores"] = rollout_reward_scores[i]
             extras[i]["global_steps"] = global_steps
 

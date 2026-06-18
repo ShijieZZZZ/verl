@@ -186,6 +186,7 @@ class SpecRLRayPPOTrainer(RayPPOTrainer):
                 self.cache_manager.update_cache(test_batch, self.config.actor_rollout_ref.rollout.val_kwargs.n)
 
             test_batch.meta_info["validate"] = True
+            test_batch.meta_info["global_steps"] = self.global_steps
 
             # evaluate using reward_function
             if self.val_reward_fn is None:
@@ -486,6 +487,7 @@ class SpecRLRayPPOTrainer(RayPPOTrainer):
                             else:
                                 gen_baseline_output = self.async_rollout_manager.generate_sequences(gen_baseline_batch)
                             batch = batch.union(gen_baseline_output)
+                            batch.meta_info["global_steps"] = self.global_steps
                             # compute reward model score on batch
                             rm_scores = None
                             if self.use_rm and "rm_scores" not in batch.batch.keys():
@@ -523,6 +525,7 @@ class SpecRLRayPPOTrainer(RayPPOTrainer):
 
                     # compute global_valid tokens
                     batch.meta_info["global_token_num"] = torch.sum(batch.batch["attention_mask"], dim=-1).tolist()
+                    batch.meta_info["global_steps"] = self.global_steps
 
                     with marked_timer("reward", timing_raw, color="yellow"):
                         # compute reward model score

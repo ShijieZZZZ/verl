@@ -129,7 +129,7 @@ class PrimeRewardManager(AbstractRewardManager):
         ground_truth = [data_item.non_tensor_batch["reward_model"]["ground_truth"] for data_item in data]
         data_sources = data.non_tensor_batch[self.reward_fn_key]
         extra_info = data.non_tensor_batch.get("extra_info", None)
-        global_steps = data.meta_info.get("global_steps", None)
+        global_steps = data.meta_info.get("global_steps", 0)
         if extra_info is None:
             extra_info = [{"global_steps": global_steps} for _ in range(len(sequences_str))]
         else:
