@@ -34,6 +34,7 @@ class SingleTurnAgentLoop(AgentLoopBase):
 
     async def run(self, sampling_params: dict[str, Any], **kwargs) -> AgentLoopOutput:
         prompt_ids = None
+        image_source = "raw_prompt_ids"
         if self.dataset_config.get("use_raw_prompt_ids_for_generation", False):
             prompt_ids = self._coerce_prompt_ids(kwargs.get("raw_prompt_ids"))
         if prompt_ids is None:
@@ -43,6 +44,12 @@ class SingleTurnAgentLoop(AgentLoopBase):
             multi_modal_data = await self.process_vision_info(messages)
             images = multi_modal_data.get("images")
             videos = multi_modal_data.get("videos")
+            image_source = "raw_prompt"
+            if not images:
+                images = self._coerce_media_list(kwargs.get("images"))
+                if images:
+                    multi_modal_data["images"] = images
+                    image_source = "images_field"
 
             # 2. apply chat template and tokenize
             prompt_ids = await self.apply_chat_template(
@@ -58,6 +65,8 @@ class SingleTurnAgentLoop(AgentLoopBase):
         print(
             f"[SingleTurnAgentLoop] generation image_count={len(images or [])} "
             f"video_count={len(videos or [])} "
+            f"image_source={image_source} "
+            f"prompt_token_count={len(prompt_ids or [])} "
             f"use_raw_prompt_ids_for_generation={self.dataset_config.get('use_raw_prompt_ids_for_generation', False)}",
             flush=True,
         )
@@ -116,3 +125,19 @@ class SingleTurnAgentLoop(AgentLoopBase):
                 return None
 
         return prompt_ids
+
+    @staticmethod
+    def _coerce_media_list(media: Any) -> Optional[list[Any]]:
+        if media is None:
+            return None
+
+        if hasattr(media, "tolist"):
+            media = media.tolist()
+
+        if isinstance(media, tuple):
+            media = list(media)
+
+        if not isinstance(media, list):
+            return None
+
+        return media or None

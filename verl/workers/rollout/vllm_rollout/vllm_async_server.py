@@ -512,6 +512,12 @@ class vLLMHttpServerBase:
             multi_modal_data["image"] = image_data
         if video_data is not None:
             multi_modal_data["video"] = video_data
+        print(
+            f"[vLLMHttpServer] rollout request prompt_token_count={len(prompt_ids)} "
+            f"image_count={len(image_data or [])} video_count={len(video_data or [])} "
+            f"multi_modal_keys={list(multi_modal_data.keys())}",
+            flush=True,
+        )
 
         prompt = TokensPrompt(prompt_token_ids=prompt_ids, multi_modal_data=multi_modal_data)
 
