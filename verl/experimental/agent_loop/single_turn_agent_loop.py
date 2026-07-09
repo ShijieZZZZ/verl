@@ -55,6 +55,13 @@ class SingleTurnAgentLoop(AgentLoopBase):
             images = None
             videos = None
 
+        print(
+            f"[SingleTurnAgentLoop] generation image_count={len(images or [])} "
+            f"video_count={len(videos or [])} "
+            f"use_raw_prompt_ids_for_generation={self.dataset_config.get('use_raw_prompt_ids_for_generation', False)}",
+            flush=True,
+        )
+
         # 3. generate sequences
         metrics = {}
         with simple_timer("generate_sequences", metrics):
