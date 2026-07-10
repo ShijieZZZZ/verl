@@ -91,9 +91,31 @@ def hf_processor(name_or_path, **kwargs):
 
                 processor.get_rope_index = types.MethodType(Qwen2_5_VLModel.get_rope_index, processor)
             case "Qwen3VLProcessor":
-                from transformers.models.qwen3_vl import Qwen3VLModel
+                from verl.models.transformers.qwen3_vl import get_rope_index
 
-                processor.get_rope_index = types.MethodType(Qwen3VLModel.get_rope_index, processor)
+                def _qwen3_vl_get_rope_index(
+                    processor,
+                    input_ids,
+                    image_grid_thw=None,
+                    video_grid_thw=None,
+                    attention_mask=None,
+                    **kwargs,
+                ):
+                    if input_ids is not None and input_ids.dim() == 2:
+                        input_ids = input_ids.squeeze(0)
+                    if attention_mask is not None and attention_mask.dim() == 2:
+                        attention_mask = attention_mask.squeeze(0)
+                    position_ids = get_rope_index(
+                        processor,
+                        input_ids=input_ids,
+                        image_grid_thw=image_grid_thw,
+                        video_grid_thw=video_grid_thw,
+                        attention_mask=attention_mask,
+                        **kwargs,
+                    )
+                    return position_ids.unsqueeze(1), None
+
+                processor.get_rope_index = types.MethodType(_qwen3_vl_get_rope_index, processor)
             case "Glm4vImageProcessor":
                 from transformers.models.glm4v import Glm4vModel
 
