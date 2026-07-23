@@ -17,6 +17,7 @@ import inspect
 import logging
 import os
 import random
+import zlib
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 from uuid import uuid4
@@ -476,9 +477,20 @@ class AgentLoopWorkerBase:
         for i in range(len(batch)):
             trace_this_sample = i in traced_indices
             kwargs = {k: v[i] for k, v in batch.non_tensor_batch.items()}
+            request_sampling_params = dict(sampling_params)
+            sample_index_seed = zlib.adler32(str(trajectory_info[i]["sample_index"]).encode("utf-8"))
+            request_sampling_params.setdefault(
+                "seed",
+                (
+                    (trajectory_info[i]["step"] + 1) * 1_000_003
+                    + sample_index_seed * 1_009
+                    + trajectory_info[i]["rollout_n"]
+                )
+                % (2**31 - 1),
+            )
             tasks.append(
                 asyncio.create_task(
-                    self._run_agent_loop(sampling_params, trajectory_info[i], trace=trace_this_sample, **kwargs)
+                    self._run_agent_loop(request_sampling_params, trajectory_info[i], trace=trace_this_sample, **kwargs)
                 )
             )
         outputs = await asyncio.gather(*tasks)
